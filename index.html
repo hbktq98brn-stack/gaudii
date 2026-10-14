@@ -1450,73 +1450,101 @@ body{
 async function downloadPDF(){
   const btn = document.getElementById('downloadBtn');
   const label = document.getElementById('downloadText');
-  const originalHTML = label.textContent;
+  const original = label.textContent;
 
-  if (typeof html2pdf === 'undefined') {
-    alert('Библиотека для генерации PDF ещё загружается. Подождите пару секунд и попробуйте снова.');
+  if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+    alert('Библиотека ещё загружается. Подождите пару секунд и попробуйте снова.');
     return;
   }
 
   btn.disabled = true;
-  btn.style.opacity = '0.6';
-  btn.style.cursor = 'wait';
   label.textContent = 'Готовим PDF…';
 
   try {
+    const { jsPDF } = window.jspdf;
+    const A4_W = 210, A4_H = 297;
     const pages = document.querySelectorAll('.page');
-
-    // Собираем PDF по одной странице
-    const { jsPDF } = window.jspdf || {};
     let pdf = null;
-
-    const A4_W = 210;
-    const A4_H = 297;
 
     for (let i = 0; i < pages.length; i++) {
       const pageEl = pages[i];
+
+      // Запоминаем позиции ссылок ДО рендера
+      const pageRect = pageEl.getBoundingClientRect();
+      const links = [];
+      pageEl.querySelectorAll('a[href]').forEach(a => {
+        const r = a.getBoundingClientRect();
+        links.push({
+          href: a.href,
+          x: r.left - pageRect.left,
+          y: r.top - pageRect.top,
+          w: r.width,
+          h: r.height
+        });
+      });
+
+      // Рендер страницы в canvas
       const canvas = await html2canvas(pageEl, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#FCFBF7',
-        windowWidth: pageEl.scrollWidth,
-        windowHeight: pageEl.scrollHeight,
-        scrollX: 0,
-        scrollY: -window.scrollY
+        width: pageEl.offsetWidth,
+        height: pageEl.offsetHeight,
+        windowWidth: pageEl.offsetWidth,
+        windowHeight: pageEl.offsetHeight
       });
 
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
       if (i === 0) {
-        pdf = new window.jspdf.jsPDF({
-          unit: 'mm',
-          format: 'a4',
-          orientation: 'portrait',
-          compress: true
-        });
+        pdf = new jsPDF({ unit:'mm', format:[A4_W, A4_H], orientation:'portrait', compress:true });
       } else {
-        pdf.addPage('a4', 'portrait');
+        pdf.addPage([A4_W, A4_H], 'portrait');
       }
 
-      // Вписываем изображение ровно в A4, сохраняя пропорции
-      const imgW = A4_W;
-      const imgH = (canvas.height * imgW) / canvas.width;
-      const finalH = Math.min(imgH, A4_H);
-      const yOffset = 0;
+      // Вписываем картинку в A4 СОХРАНЯЯ ПРОПОРЦИИ — не сжимаем
+      const imgRatio = canvas.width / canvas.height;
+      const pageRatio = A4_W / A4_H;
+      let imgW, imgH, offsetX, offsetY;
 
-      pdf.addImage(imgData, 'JPEG', 0, yOffset, imgW, finalH, undefined, 'FAST');
+      if (imgRatio > pageRatio) {
+        imgW = A4_W;
+        imgH = A4_W / imgRatio;
+        offsetX = 0;
+        offsetY = (A4_H - imgH) / 2;
+      } else {
+        imgH = A4_H;
+        imgW = A4_H * imgRatio;
+        offsetX = (A4_W - imgW) / 2;
+        offsetY = 0;
+      }
+
+      pdf.addImage(imgData, 'JPEG', offsetX, offsetY, imgW, imgH, undefined, 'FAST');
+
+      // Накладываем АКТИВНЫЕ ССЫЛКИ поверх картинки
+      const pxToMmX = imgW / pageEl.offsetWidth;
+      const pxToMmY = imgH / pageEl.offsetHeight;
+
+      links.forEach(l => {
+        pdf.link(
+          offsetX + l.x * pxToMmX,
+          offsetY + l.y * pxToMmY,
+          l.w * pxToMmX,
+          l.h * pxToMmY,
+          { url: l.href }
+        );
+      });
     }
 
     pdf.save('arhitektor-cennosti-guide.pdf');
     label.textContent = 'Готово!';
-    setTimeout(() => { label.textContent = originalHTML; }, 1800);
+    setTimeout(() => { label.textContent = original; }, 1800);
   } catch (err) {
-    console.error('PDF error:', err);
-    alert('Не удалось сформировать PDF: ' + err.message);
-    label.textContent = originalHTML;
+    console.error(err);
+    alert('Ошибка при создании PDF: ' + err.message);
+    label.textContent = original;
   } finally {
     btn.disabled = false;
-    btn.style.opacity = '';
-    btn.style.cursor = '';
   }
 }
 </script>
