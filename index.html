@@ -1552,6 +1552,51 @@ async function downloadPDF(){
 <!-- Подключаем jsPDF + html2canvas отдельно (более надёжно) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+/* Автоматически вписывает содержимое каждой страницы в A4:
+   если контент выше 297mm — масштабирует его вниз, пока не влезет.
+   HTML не меняется. */
+(function fitPages(){
+  document.querySelectorAll('.page').forEach(function(page){
+    // 1. Оборачиваем всё содержимое страницы в один контейнер (кроме шапки/футера)
+    let wrap = page.querySelector(':scope > .fit-wrap');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.className = 'fit-wrap';
+      Array.from(page.children).forEach(function(ch){
+        if (!ch.classList.contains('page__mark') &&
+            !ch.classList.contains('page__num')  &&
+            !ch.classList.contains('page__footer')) {
+          wrap.appendChild(ch);
+        }
+      });
+      page.appendChild(wrap);
+    }
 
+    // 2. Сбрасываем предыдущий масштаб и меряем чистую высоту
+    wrap.style.transform = '';
+    wrap.style.width = '';
+    const cs = getComputedStyle(page);
+    const avail = page.clientHeight
+                - parseFloat(cs.paddingTop)
+                - parseFloat(cs.paddingBottom)
+                - 20; // запас под футер
+    const real = wrap.scrollHeight;
+
+    // 3. Если не влезает — уменьшаем
+    if (real > avail) {
+      const k = avail / real;
+      wrap.style.transformOrigin = 'top left';
+      wrap.style.transform = 'scale(' + k + ')';
+      wrap.style.width = (100 / k) + '%';
+    }
+  });
+})();
+
+// Пересчитывать при загрузке, изменении окна и перед печатью
+window.addEventListener('load',   fitPages);
+window.addEventListener('resize', fitPages);
+window.addEventListener('beforeprint', fitPages);
+</script>
 </body>
 </html>
