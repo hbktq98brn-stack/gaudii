@@ -72,15 +72,20 @@ body{
   display:flex;flex-direction:column;gap:44px;
 }
 .page{
-  width:210mm;min-height:297mm;
+  width:210mm;
+  height:297mm;
+  box-sizing:border-box;
+  overflow:hidden;
   background:var(--paper);
   position:relative;
-  overflow:hidden;
   box-shadow:var(--shadow);
-  padding:24mm 20mm 22mm;
-  display:flex;flex-direction:column;
+  padding:18mm 16mm 16mm;
+  display:flex;
+  flex-direction:column;
   page-break-after:always;
   break-after:page;
+  page-break-inside:avoid;
+  break-inside:avoid;
 }
 
 /* ============ PAGE CHROME ============ */
@@ -458,12 +463,14 @@ body{
 .deco-lines{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.6}
 
 /* ============ PRINT ============ */
-@page{size:A4;margin:0}
-@media print{
+@page{
+  size:210mm 297mm;
+  margin:0;
+}
+  @media print{
   body{background:var(--paper)}
   .toolbar{display:none}
   .document{padding:0;gap:0;max-width:none}
-  .page{box-shadow:none;margin:0;page-break-after:always;break-after:page}
   .page:last-child{page-break-after:auto;break-after:auto}
 }
 </style>
@@ -1452,8 +1459,8 @@ async function downloadPDF(){
   const label = document.getElementById('downloadText');
   const originalHTML = label.textContent;
 
-  if (typeof html2pdf === 'undefined') {
-    alert('Библиотека для генерации PDF ещё загружается. Подождите пару секунд и попробуйте снова.');
+  if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+    alert('Библиотека ещё загружается. Подождите пару секунд.');
     return;
   }
 
@@ -1463,17 +1470,29 @@ async function downloadPDF(){
   label.textContent = 'Готовим PDF…';
 
   try {
+    const { jsPDF } = window.jspdf;
+    const A4_W = 210, A4_H = 297;
     const pages = document.querySelectorAll('.page');
-
-    // Собираем PDF по одной странице
-    const { jsPDF } = window.jspdf || {};
     let pdf = null;
-
-    const A4_W = 210;
-    const A4_H = 297;
 
     for (let i = 0; i < pages.length; i++) {
       const pageEl = pages[i];
+
+      /* --- Сохраняем позиции ссылок ДО рендера --- */
+      const rect = pageEl.getBoundingClientRect();
+      const links = [];
+      pageEl.querySelectorAll('a[href]').forEach(a => {
+        const r = a.getBoundingClientRect();
+        links.push({
+          href: a.href,
+          x: r.left - rect.left,
+          y: r.top - rect.top,
+          w: r.width,
+          h: r.height
+        });
+      });
+
+      /* --- Рендер страницы в canvas --- */
       const canvas = await html2canvas(pageEl, {
         scale: 2,
         useCORS: true,
@@ -1486,24 +1505,49 @@ async function downloadPDF(){
 
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
+      /* --- Создаём / добавляем страницу --- */
       if (i === 0) {
-        pdf = new window.jspdf.jsPDF({
+        pdf = new jsPDF({
           unit: 'mm',
-          format: 'a4',
+          format: [A4_W, A4_H],
           orientation: 'portrait',
           compress: true
         });
       } else {
-        pdf.addPage('a4', 'portrait');
+        pdf.addPage([A4_W, A4_H], 'portrait');
       }
 
-      // Вписываем изображение ровно в A4, сохраняя пропорции
-      const imgW = A4_W;
-      const imgH = (canvas.height * imgW) / canvas.width;
-      const finalH = Math.min(imgH, A4_H);
-      const yOffset = 0;
+      /* --- Вписываем картинку С СОХРАНЕНИЕМ ПРОПОРЦИЙ --- */
+      const ratio = canvas.width / canvas.height;
+      let imgW, imgH, offsetX, offsetY;
 
-      pdf.addImage(imgData, 'JPEG', 0, yOffset, imgW, finalH, undefined, 'FAST');
+      if (ratio > A4_W / A4_H) {
+        imgW = A4_W;
+        imgH = A4_W / ratio;
+        offsetX = 0;
+        offsetY = (A4_H - imgH) / 2;
+      } else {
+        imgH = A4_H;
+        imgW = A4_H * ratio;
+        offsetX = (A4_W - imgW) / 2;
+        offsetY = 0;
+      }
+
+      pdf.addImage(imgData, 'JPEG', offsetX, offsetY, imgW, imgH, undefined, 'FAST');
+
+      /* --- НАКЛАДЫВАЕМ АКТИВНЫЕ ССЫЛКИ ПОВЕРХ КАРТИНКИ --- */
+      const pxToMmX = imgW / pageEl.scrollWidth;
+      const pxToMmY = imgH / pageEl.scrollHeight;
+
+      links.forEach(l => {
+        pdf.link(
+          offsetX + l.x * pxToMmX,
+          offsetY + l.y * pxToMmY,
+          l.w * pxToMmX,
+          l.h * pxToMmY,
+          { url: l.href }
+        );
+      });
     }
 
     pdf.save('arhitektor-cennosti-guide.pdf');
@@ -1511,7 +1555,7 @@ async function downloadPDF(){
     setTimeout(() => { label.textContent = originalHTML; }, 1800);
   } catch (err) {
     console.error('PDF error:', err);
-    alert('Не удалось сформировать PDF: ' + err.message);
+    alert('Ошибка: ' + err.message);
     label.textContent = originalHTML;
   } finally {
     btn.disabled = false;
