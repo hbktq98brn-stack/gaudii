@@ -72,15 +72,20 @@ body{
   display:flex;flex-direction:column;gap:44px;
 }
 .page{
-  width:210mm;min-height:297mm;
+  width:210mm;
+  height:297mm;
+  box-sizing:border-box;
   background:var(--paper);
   position:relative;
   overflow:hidden;
   box-shadow:var(--shadow);
-  padding:24mm 20mm 22mm;
-  display:flex;flex-direction:column;
+  padding:18mm 16mm 18mm;
+  display:flex;
+  flex-direction:column;
   page-break-after:always;
   break-after:page;
+  page-break-inside:avoid;
+  break-inside:avoid;
 }
 
 /* ============ PAGE CHROME ============ */
@@ -458,13 +463,37 @@ body{
 .deco-lines{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.6}
 
 /* ============ PRINT ============ */
-@page{size:A4;margin:0}
-@media print{
-  body{background:var(--paper)}
-  .toolbar{display:none}
-  .document{padding:0;gap:0;max-width:none}
-  .page{box-shadow:none;margin:0;page-break-after:always;break-after:page}
-  .page:last-child{page-break-after:auto;break-after:auto}
+@page{
+  size:210mm 297mm;
+  margin:0;
+}
+ @media print{
+  html, body{
+    margin:0 !important;
+    padding:0 !important;
+    width:210mm;
+    background:var(--paper);
+  }
+  .toolbar{display:none !important}
+  .document{
+    padding:0 !important;
+    margin:0 !important;
+    gap:0 !important;
+    max-width:none !important;
+    display:block !important;
+  }
+  .page{
+    box-shadow:none !important;
+    margin:0 !important;
+    page-break-after:always;
+    break-after:page;
+    page-break-inside:avoid;
+    break-inside:avoid;
+  }
+  .page:last-child{
+    page-break-after:auto;
+    break-after:auto;
+  }
 }
 </style>
 </head>
