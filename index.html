@@ -72,12 +72,14 @@ body{
   display:flex;flex-direction:column;gap:44px;
 }
 .page{
-  width:210mm;min-height:297mm;
+  width:210mm;
+  height:297mm;              /* ← было min-height:297mm */
+  box-sizing:border-box;     /* ← добавьте эту строку */
   background:var(--paper);
   position:relative;
   overflow:hidden;
   box-shadow:var(--shadow);
-  padding:24mm 20mm 22mm;
+  padding:18mm 16mm 16mm;    /* ← было 24mm 20mm 22mm */
   display:flex;flex-direction:column;
   page-break-after:always;
   break-after:page;
