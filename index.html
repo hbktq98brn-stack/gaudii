@@ -1594,8 +1594,8 @@ async function downloadPDF(){
    если контент выше 297mm — масштабирует его вниз, пока не влезет.
    HTML не меняется. */
 (function fitPages(){
-  document.querySelectorAll('.page').forEach(function(page){
-    // 1. Оборачиваем всё содержимое страницы в один контейнер (кроме шапки/футера)
+document.querySelectorAll('.page:not(.cover)').forEach(function(page){
+  // 1. Оборачиваем всё содержимое страницы в один контейнер (кроме шапки/футера)
     let wrap = page.querySelector(':scope > .fit-wrap');
     if (!wrap) {
       wrap = document.createElement('div');
